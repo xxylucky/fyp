@@ -1,0 +1,17 @@
+# 忽略data中的BUSI图片文件夹
+data/BUSI/
+
+# 忽略data中的原图片文件夹
+data/splits/Dataset_BUSI_with_GT/
+
+# 忽略分割结果图片
+GAN/test_results/
+
+# 忽略训练保存的.pth和曲线
+semi/checkpoint/
+
+# 忽略分割结果图片
+semi/code/result/
+
+# 忽略预先下载保存的.pth文件
+semi/code/pretrain/
