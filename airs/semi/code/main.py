@@ -162,7 +162,7 @@ def train_semi():
 
     # train
     print('\n---------------------------------')
-    print('Start training_semi with MedSAM Refinement (After Epoch %d)'%(args.samEpoch))
+    print('Start training_semi with MedSAM Refinement (After Epoch %d)'%(args.samAfter))
     print('---------------------------------\n')
     F1_best, F1_second_best, F1_third_best = 0, 0, 0
     best = 0
@@ -194,8 +194,8 @@ def train_semi():
             loss_l = DeepSupSeg(mask, gt)  # 是GT和教师模型预测的损失
 
             # 【无监督/一致性分支：教师-学生机制】
-            # smoke test: 在opt.py中修改samEpoch为0，使模型一开始就接入SAM
-            if epoch >= args.samEpoch:
+            # smoke test: 在opt.py中修改samAfter为0，使模型一开始就接入SAM
+            if epoch >= args.samAfter:
                 # 1. 教师模型生成初步伪标签 (不计算梯度)
                 with torch.no_grad():
                     model.eval() # 切换为评估模式，关闭 Dropout/BatchNorm 更新

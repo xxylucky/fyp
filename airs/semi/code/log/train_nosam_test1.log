@@ -8076,4 +8076,4 @@ Best Dice::  0.7233464657962339
 Done
 
 python -u main.py > log/train_nosam_test.log --mode train  --manner semi --ratio 2 --batch_size 32  --GPUs 0 --dataset BUSI  --expID 1 --ckpt_name 'medsam_test' 2>&1 &
-samEpoch 300
+samAfter 300

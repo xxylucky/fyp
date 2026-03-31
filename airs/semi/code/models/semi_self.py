@@ -131,9 +131,9 @@ class Encoder(nn.Module):
         参数：
         - in_channels: 输入通道数。RGB 图像一般是 3；如果不是 3，这里会自己新建一个 conv1。
         """
-        resnet = models.resnet34(pretrained=False)  # 调用resnet34框架，不直接用内置的 torchvision 的预训练权重
+        resnet = models.resnet34(pretrained=True)  # 调用resnet34框架并从网络上下载最新的权重
         # 从本地加载预训练权重
-        resnet.load_state_dict(torch.load("pretrain/backbone/resnet34-333f7ec4.pth"))
+        # resnet.load_state_dict(torch.load("pretrain/backbone/resnet34-333f7ec4.pth"))
 
         if in_channels == 3:
             # 输入是 RGB：直接复用 ResNet34 的第一层卷积（conv1）

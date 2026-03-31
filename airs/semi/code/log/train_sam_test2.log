@@ -8215,4 +8215,4 @@ Best Dice::  0.768451463378651
 Done
 
 python -u main.py > log/train_sam_test.log --mode train  --manner semi --ratio 2 --batch_size 32  --GPUs 0 --dataset BUSI  --expID 1 --ckpt_name 'medsam_test' 2>&1 &
-samEpoch 30
+samAfter 30
