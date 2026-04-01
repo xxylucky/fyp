@@ -9,29 +9,27 @@ model_sam_path = os.path.join(root_dir, "model_sam")
 if model_sam_path not in sys.path:
     sys.path.insert(0, model_sam_path)
 
-
-import torch
+import math
 import os
-import sys
-from torch.utils.data import DataLoader
-import torchvision.utils as vutils
-import torch.nn.functional as F
-import torch.nn as nn
-import torch.nn.functional as F
-from tqdm import tqdm
+import random
+import warnings
 from itertools import cycle
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from data.build_dataset import build_dataset
 from models.build_model import build_model
 from models.dc_gan import DCGAN_D
-from utils.evaluate import evaluate
 from opt import args
-from utils.loss import BceDiceLoss
-import math
-import warnings
-import logging
+from utils.evaluate import evaluate
+from utils.loss_topo_modified import BceDiceLoss, BettiMatchingLoss
+
+warnings.filterwarnings("ignore", category=UserWarning)
 from tensorboardX import SummaryWriter  # 动态图表记录训练过程中的指标变化
-
-
 
 warnings.filterwarnings("ignore", category=UserWarning)  # 屏蔽所有的用户警告
 
@@ -51,6 +49,51 @@ def adjust_lr_rate(argsimizer, iter, total_batch):
     argsimizer.param_groups[0]['lr'] = lr
     return lr
 
+# ------------------------ Topo ------------------------
+def zero_like_loss(device):
+    return torch.tensor(0.0, device=device)
+
+
+def unpack_model_outputs(outputs):
+    """
+    Compatible with both:
+      1) full-supervised models that may directly return mask
+      2) your semi model that returns
+         (mask, predboud, inpimg2, inpimg3, inpimg4, inpimg5, mask_binary)
+    """
+    if isinstance(outputs, (tuple, list)):
+        if len(outputs) == 7:
+            return outputs
+        if len(outputs) == 1:
+            return outputs[0], None, None, None, None, None, None
+    return outputs, None, None, None, None, None, None
+
+
+def build_topo_criterion():
+    return BettiMatchingLoss(
+        homology_dim=getattr(args, 'topo_hdim', 0),
+        matched_weight=getattr(args, 'lambda_topo_match', 1.0),
+        unmatched_weight=getattr(args, 'lambda_topo_unmatch', 1.0),
+        include_target_unmatched=bool(getattr(args, 'topo_include_target_unmatched', 0)),
+        backend_import=getattr(args, 'topo_backend_import', 'build.betti_matching'),
+        backend_root=getattr(args, 'topo_backend_root', '/root/example/fyp/airs/Betti-Matching-3D-master'),
+        warn_once=True,
+    )
+
+
+def use_topo_sup_now():
+    return bool(getattr(args, 'use_topo_sup', 1))
+
+
+def use_topo_semi_now(epoch: int):
+    if not bool(getattr(args, 'use_topo_semi', 1)):
+        return False
+    start_epoch = int(getattr(args, 'use_semi', 0))
+    # If you wanna keep semi-topo switch aligned with SAM refinement stage:
+    # start_epoch = int(getattr(args, 'samAfter', getattr(args, 'use_semi', 0)))
+    return epoch >= start_epoch
+
+
 def train():
     """load data"""
     train_l_data, _ , valid_data = build_dataset(args)
@@ -64,9 +107,6 @@ def train():
     
     """load model"""
     model = build_model(args)
-
-    # 定义优化器 (Optimizer)：这里使用随机梯度下降 (SGD)
-    # momentum: 动量，加速收敛；weight_decay: 权重衰减，防止过拟合
     optim = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.mt, weight_decay=args.weight_decay)
 
     # train
@@ -139,6 +179,7 @@ def train_semi():
     
     """load model"""
     model = build_model(args)
+    topo_criterion = build_topo_criterion()
 
     # DSR
     netD = DCGAN_D(64, 100, 1, 64, 1, 0)
@@ -148,9 +189,10 @@ def train_semi():
     netD.eval()  # 设为评估模式Evaluation，不更新netD的参数。
 
     # MedSAM
+    # model_sam_path = os.path.join(args.root, "model_sam")
     from model_sam.medsam import load_medsam
     from utils.get_prompts import get_bbox256_torch 
-    medsam_ckpt = os.path.join(root_dir, 'model_sam/lite_medsam.pth')
+    medsam_ckpt = os.path.join(args.root, 'model_sam/lite_medsam.pth')
     medsam = load_medsam(medsam_ckpt, cuda_num='cuda:0')
     medsam.eval()
     for param in medsam.parameters():
@@ -162,8 +204,19 @@ def train_semi():
 
     # train
     print('\n---------------------------------')
-    print('Start training_semi with MedSAM Refinement (After Epoch %d)'%(args.samAfter))
+    # print('Start training_semi with MedSAM Refinement and TOPO modified (After Epoch %d)'%(args.samAfter))
+    print('Start training_semi')
     print('---------------------------------\n')
+    aspp_on = str(getattr(args, 'model', '')).lower().endswith('aspp')
+    topo_sup_on = bool(getattr(args, 'use_topo_sup', 1))
+    topo_semi_on = bool(getattr(args, 'use_topo_semi', 1))
+    topo_semi_start = int(getattr(args, 'use_semi', 0))
+    print('[Stage Config] ASPP: {}'.format('ON' if aspp_on else 'OFF'))
+    print('[Stage Config] MedSAM: {} (start epoch: {})'.format('ON' if int(getattr(args, 'samAfter', -1)) < args.nEpoch else 'OFF', args.samAfter))
+    print('[Stage Config] TOPO(supervised): {}'.format('ON' if topo_sup_on else 'OFF'))
+    print('[Stage Config] TOPO(unlabeled): {} (start epoch: {})'.format('ON' if topo_semi_on else 'OFF', topo_semi_start))
+    print('')
+
     F1_best, F1_second_best, F1_third_best = 0, 0, 0
     best = 0
     
@@ -173,9 +226,11 @@ def train_semi():
         loader = iter(zip(cycle(train_l_dataloader), train_u_dataloader))
         bar = tqdm(range(len(train_u_dataloader)))
         
+        semi_topo_on = use_topo_semi_now(epoch)
+        sup_topo_on = use_topo_sup_now()
+
         for batch_id in bar:
             data_l, data_u = next(loader)
-
             total_batch = len(train_u_dataloader)
             itr = total_batch * epoch + batch_id
             
@@ -189,9 +244,16 @@ def train_semi():
             optim.zero_grad() # 梯度清零
 
             # 【有监督分支：同时也是教师模型对有标签数据的学习】
-            pred_l = model(img_l)        
-            mask = pred_l[0]             
-            loss_l = DeepSupSeg(mask, gt)  # 是GT和教师模型预测的损失
+            # pred_l = model(img_l)        
+            # mask = pred_l[0]             
+            # loss_l = DeepSupSeg(mask, gt)  # 是GT和教师模型预测的损失
+
+            # -------- labeled branch --------
+            pred_l = model(img_l)
+            mask_l, _, _, _, _, _, _ = unpack_model_outputs(pred_l)
+            loss_l_seg = DeepSupSeg(mask_l, gt)
+            loss_l_topo = topo_criterion(mask_l, gt) if sup_topo_on else zero_like_loss(mask_l.device)
+            loss_l = loss_l_seg + getattr(args, 'lambda_topo_sup', 0.0) * loss_l_topo
 
             # 【无监督/一致性分支：教师-学生机制】
             # smoke test: 在opt.py中修改samAfter为0，使模型一开始就接入SAM
@@ -211,7 +273,9 @@ def train_semi():
                     # 4. MedSAM 生成精细化伪标签
                     sam_mask, _ = medsam(img_u_3ch, bboxes)
                     refined_pseudo_label = torch.sigmoid(sam_mask) > 0.5
-                    refined_pseudo_label = refined_pseudo_label.float().squeeze(1).detach()
+                    refined_pseudo_label = refined_pseudo_label.float().detach()
+                    if refined_pseudo_label.dim() == 3:
+                        refined_pseudo_label = refined_pseudo_label.unsqueeze(1)
 
                 # 5. 学生模型进行前向传播并学习精细化伪标签 (计算梯度)
                 model.train() # 切回训练模式
@@ -220,6 +284,7 @@ def train_semi():
                 
                 # 计算学生预测与 MedSAM 伪标签的损失
                 loss_u_seg = DeepSupSeg(predboud, refined_pseudo_label)
+                loss_u_topo = topo_criterion(predboud, refined_pseudo_label) if semi_topo_on else zero_like_loss(predboud.device)
                 
             else:
                 # 前 30 个 Epoch 直接使用内部预测进行一致性学习 =====
@@ -229,6 +294,7 @@ def train_semi():
                 
                 # 早期使用自身的粗糙 mask 作为伪标签 (使用 detach 截断梯度，模拟标准伪标签行为)
                 loss_u_seg = DeepSupSeg(predboud, mask_boud.detach())
+                loss_u_topo = topo_criterion(predboud, mask_boud.detach()) if semi_topo_on else zero_like_loss(predboud.device)
 
 
             # 【形状先验损失计算】(保持不变)
@@ -240,7 +306,7 @@ def train_semi():
             loss_u_shape = (netD(shape_u_1) + netD(shape_u_2) + netD(shape_u_3) + netD(shape_u_4) + netD(shape_u_5)) / 5
             
             # 【总损失计算】
-            loss_u = loss_u_seg + 0.1 * loss_u_shape  # 无监督分支的总损失是分割损失加上形状先验损失（后者权重较小）
+            loss_u = loss_u_seg + 0.1 * loss_u_shape + getattr(args, 'lambda_topo_semi', 0.0) * loss_u_topo
             loss = 2 * loss_l + loss_u
             
             loss.backward()
@@ -266,6 +332,7 @@ def train_semi():
             writer.add_scalar('Train/Loss_l', loss_l, epoch)
             writer.add_scalar('Train/Loss_u_Seg', loss_u_seg, epoch)
             writer.add_scalar('Train/Loss_u_Shape', loss_u_shape, epoch)
+            writer.add_scalar('Train/Loss_u_Topo', loss_u_topo, epoch)
             writer.add_scalar('Train/Loss', loss, epoch)
 
             if dice > best:
