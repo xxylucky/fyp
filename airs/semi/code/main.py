@@ -179,6 +179,8 @@ def train_semi():
     
     """load model"""
     model = build_model(args)
+
+    #topo
     topo_criterion = build_topo_criterion()
 
     # DSR
@@ -189,7 +191,6 @@ def train_semi():
     netD.eval()  # 设为评估模式Evaluation，不更新netD的参数。
 
     # MedSAM
-    # model_sam_path = os.path.join(args.root, "model_sam")
     from model_sam.medsam import load_medsam
     from utils.get_prompts import get_bbox256_torch 
     medsam_ckpt = os.path.join(args.root, 'model_sam/lite_medsam.pth')
@@ -329,7 +330,8 @@ def train_semi():
             writer.add_scalar('Val/IoU_Mean', IoU_mean, epoch)
             writer.add_scalar('Val/Recall', recall, epoch)
             # 如果你有计算训练阶段的 Loss，也可以记录
-            writer.add_scalar('Train/Loss_l', loss_l, epoch)
+            writer.add_scalar('Train/Loss_l_Seg', loss_l_seg, epoch)
+            writer.add_scalar('Train/Loss_l_Topo', loss_l_topo, epoch)
             writer.add_scalar('Train/Loss_u_Seg', loss_u_seg, epoch)
             writer.add_scalar('Train/Loss_u_Shape', loss_u_shape, epoch)
             writer.add_scalar('Train/Loss_u_Topo', loss_u_topo, epoch)

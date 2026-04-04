@@ -180,7 +180,7 @@ def train_semi():
 
     netD = DCGAN_D(64, 100, 1, 64, 1, 0)
     netD.cuda()
-    netD_weight = torch.load("/hy-tmp/airs/GAN/models/pretrain/GAN/netD_epoch_10000.pth")
+    netD_weight = torch.load("/root/example/fyp/airs/semi/code/pretrain/GAN/netD_epoch_10000.pth")
     netD.load_state_dict(netD_weight)
     netD.eval()
 
@@ -259,7 +259,7 @@ def train_semi():
 
         model.eval()
         if valid_sign:
-            recall, specificity, precision, F1, F2, ACC_overall, IoU_poly, IoU_bg, IoU_mean, dice = evaluate(
+            recall, specificity, precision, F1, F2, ACC_overall, IoU_poly, IoU_bg, IoU_mean, dice, _, _= evaluate(
                 model, valid_dataloader, val_total_batch
             )
 
