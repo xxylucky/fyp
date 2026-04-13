@@ -202,12 +202,12 @@ class MyModel(nn.Module):
                                       nn.Conv2d(32, num_classes, 1))
 
         # inpaint-Decoder
-        
-        self.inpDecoder5 = DecoderBlock(512, 512, transpose=True)
-        self.inpDecoder4 = DecoderBlock(512 + 256, 256, transpose=True)
-        self.inpDecoder3 = DecoderBlock(256 + 128, 128, transpose=True)
-        self.inpDecoder2 = DecoderBlock(128 + 64, 64, transpose=True)
-        self.inpDecoder1 = DecoderBlock(64 + 64, 64, transpose=True)
+        # 取消转置卷积
+        self.inpDecoder5 = DecoderBlock(512, 512, transpose=False)
+        self.inpDecoder4 = DecoderBlock(512 + 256, 256, transpose=False)
+        self.inpDecoder3 = DecoderBlock(256 + 128, 128, transpose=False)
+        self.inpDecoder2 = DecoderBlock(128 + 64, 64, transpose=False)
+        self.inpDecoder1 = DecoderBlock(64 + 64, 64, transpose=False)
 
         self.inpSideout5 = SideoutBlock(512, 1)
         self.inpSideout4 = SideoutBlock(256, 1)

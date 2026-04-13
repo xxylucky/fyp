@@ -17,4 +17,4 @@ semi/code/result/
 semi/code/pretrain/
 
 # 忽略log文件
-semi/cpde/log/
+# semi/code/log/

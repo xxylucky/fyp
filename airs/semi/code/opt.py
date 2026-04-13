@@ -13,7 +13,7 @@ parse.add_argument('--ratio', type=int, default=10)  # 需要修改default为不
 "-------------------training option-----------------------"
 parse.add_argument('--manner', type=str, default='semi', choices=['full', 'semi', 'test', 'self'])  # 需要修改default为不同的模式以实现模型训练和测试
 parse.add_argument('--mode', type=str, default='train')
-parse.add_argument('--nEpoch', type=int, default=200)
+parse.add_argument('--nEpoch', type=int, default=200) # 默认训练200epoch
 parse.add_argument('--batch_size', type=int, default=24)
 parse.add_argument('--num_workers', type=int, default=2)
 parse.add_argument('--load_ckpt', type=str, default=None)  # test时可改为best、second_best、third_best等以加载不同的模型权重进行测试
@@ -49,17 +49,17 @@ parse.add_argument('--use_semi', type=int, default=30,
                    help='epoch to start topology loss on semi branch')
 
 # 监督分支 topo loss 权重
-parse.add_argument('--lambda_topo_sup', type=float, default=1.0,
+parse.add_argument('--lambda_topo_sup', type=float, default=0.1,
                    help='weight of topology loss on supervised branch')
 
 # 半监督分支 topo loss 权重
-parse.add_argument('--lambda_topo_semi', type=float, default=1.0,
+parse.add_argument('--lambda_topo_semi', type=float, default=0.1,
                    help='weight of topology loss on semi branch')
 
 # matched / unmatched 内部权重
-parse.add_argument('--lambda_topo_match', type=float, default=1.0,
+parse.add_argument('--lambda_topo_match', type=float, default=1,
                    help='weight of matched term inside topology loss')
-parse.add_argument('--lambda_topo_unmatch', type=float, default=1.0,
+parse.add_argument('--lambda_topo_unmatch', type=float, default=1,
                    help='weight of unmatched term inside topology loss')
 
 # 只做哪一维拓扑：0=components, 1=holes
