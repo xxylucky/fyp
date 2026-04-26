@@ -373,7 +373,7 @@ if __name__ == '__main__':
     import numpy as np
     import torch
     # 固定随机种子，确保每次运行结果一致（可复现性）
-    seed = 19  # 宇宙终极答案，或者填你喜欢的数字
+    seed = 42  # 宇宙终极答案，或者填你喜欢的数字
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

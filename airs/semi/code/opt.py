@@ -49,11 +49,11 @@ parse.add_argument('--use_semi', type=int, default=30,
                    help='epoch to start topology loss on semi branch')
 
 # 监督分支 topo loss 权重
-parse.add_argument('--lambda_topo_sup', type=float, default=0.1,
+parse.add_argument('--lambda_topo_sup', type=float, default=1,
                    help='weight of topology loss on supervised branch')
 
 # 半监督分支 topo loss 权重
-parse.add_argument('--lambda_topo_semi', type=float, default=0.1,
+parse.add_argument('--lambda_topo_semi', type=float, default=1,
                    help='weight of topology loss on semi branch')
 
 # matched / unmatched 内部权重
